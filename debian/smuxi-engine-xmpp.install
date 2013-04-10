@@ -1,2 +1,3 @@
 usr/lib/smuxi/smuxi-engine-xmpp.dll*
-usr/lib/smuxi/agsXMPP.dll*
+usr/lib/smuxi/agsxmpp.dll*
+usr/lib/smuxi/StarkSoftProxy.dll*

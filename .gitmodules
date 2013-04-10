@@ -22,3 +22,6 @@
 [submodule "lib/messagingmenu-sharp"]
 	path = lib/messagingmenu-sharp
 	url = git://git.qnetp.net/messagingmenu-sharp.git
+[submodule "lib/StarkSoftProxy"]
+	path = lib/StarkSoftProxy
+	url = git://github.com/meebey/starksoftproxy.git

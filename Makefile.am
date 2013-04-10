@@ -128,7 +128,8 @@ WIN32_FILES = \
 	$(BUILD_DIR)/Meebey.SmartIrc4net.dll \
 	$(BUILD_DIR)/Twitterizer2.dll \
 	$(BUILD_DIR)/Newtonsoft.Json.dll \
-	$(BUILD_DIR)/agsXMPP.dll \
+	$(BUILD_DIR)/agsxmpp.dll \
+	$(BUILD_DIR)/StarkSoftProxy.dll \
 	$(BUILD_DIR)/Db4objects.Db4o.dll \
 	$(BUILD_DIR)/ServiceStack.Text.dll \
 	$(BUILD_DIR)/ServiceStack.Interfaces.dll \
@@ -153,7 +154,8 @@ OSX_FILES = \
 	$(BUILD_DIR)/Meebey.SmartIrc4net.dll \
 	$(BUILD_DIR)/Twitterizer2.dll \
 	$(BUILD_DIR)/Newtonsoft.Json.dll \
-	$(BUILD_DIR)/agsXMPP.dll \
+	$(BUILD_DIR)/agsxmpp.dll \
+	$(BUILD_DIR)/StarkSoftProxy.dll \
 	$(BUILD_DIR)/Db4objects.Db4o.dll \
 	$(BUILD_DIR)/ServiceStack.Text.dll \
 	$(BUILD_DIR)/ServiceStack.Interfaces.dll \
@@ -167,7 +169,9 @@ LINUX_STATIC_FILES = \
 	$(BUILD_DIR)/smuxi-engine.dll \
 	$(BUILD_DIR)/smuxi-engine-irc.dll \
 	$(BUILD_DIR)/smuxi-engine-twitter.dll \
+	$(BUILD_DIR)/agsxmpp.dll \
 	$(BUILD_DIR)/Meebey.SmartIrc4net.dll \
+	$(BUILD_DIR)/StarkSoftProxy.dll \
 	$(BUILD_DIR)/Twitterizer2.dll \
 	$(BUILD_DIR)/Newtonsoft.Json.dll
 		
