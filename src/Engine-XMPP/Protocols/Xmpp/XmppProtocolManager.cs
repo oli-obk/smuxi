@@ -463,6 +463,10 @@ namespace Smuxi.Engine
                             CommandPriority(command);
                             handled = true;
                             break;
+                        case "whois":
+                            CommandWhoIs(command);
+                            handled = true;
+                            break;
                     }
                 } else {
                     _Say(command.Chat, command.Data);
@@ -489,6 +493,43 @@ namespace Smuxi.Engine
             }
             
             return handled;
+        }
+
+        public void CommandWhoIs(CommandModel cmd)
+        {
+            if (cmd.DataArray.Length < 2) {
+                NotEnoughParameters(cmd);
+                return;
+            }
+            Jid jid = GetJidFromNickname(cmd.DataArray[1]);
+            XmppPersonModel person;
+            var builder = CreateMessageBuilder();
+            if (!Contacts.TryGetValue(jid, out person)) {
+                builder.AppendErrorText(_("Could not find contact {0}"), jid);
+                cmd.FrontendManager.AddMessageToChat(cmd.Chat, builder.ToMessage());
+                return;
+            }
+            builder.AppendText(_("Jid: {0}\n"), person.Jid);
+            int i = 0;
+            foreach(var res in person.Resources) {
+                builder.AppendText("Resource({0}):", i);
+                builder.AppendText("\n\tName: {0}", res.Key);
+                builder.AppendText("\n\tPresence:");
+                builder.AppendText("\n\t\tShow:{0}", res.Value.Presence.Show);
+                builder.AppendText("\n\t\tStatus:{0}", res.Value.Presence.Status);
+                builder.AppendText("\n\t\tLast:{0}", res.Value.Presence.Last);
+                builder.AppendText("\n\t\tPriority:{0}", res.Value.Presence.Priority);
+                builder.AppendText("\n\t\tType:{0}", res.Value.Presence.Type);
+                builder.AppendText("\n\t\tXDelay:{0}", res.Value.Presence.XDelay);
+                if (res.Value.Disco != null) {
+                    builder.AppendText("\n\tFeatures:");
+                    foreach(var feat in res.Value.Disco.GetFeatures()) {
+                        builder.AppendText("\n\t\t{0}", feat.Var);
+                    }
+                }
+                i++;
+            }
+            cmd.FrontendManager.AddMessageToChat(cmd.Chat, builder.ToMessage());
         }
 
         public void CommandContact(CommandModel cd)
@@ -588,6 +629,7 @@ namespace Smuxi.Engine
             ,"priority away/online/temp priority-value"
             ,"advanced commands:"
             ,"contact addonly/subscribe/unsubscribe/approve/deny"
+            ,"whois jid"
             };
             
             foreach (string line in help) {
