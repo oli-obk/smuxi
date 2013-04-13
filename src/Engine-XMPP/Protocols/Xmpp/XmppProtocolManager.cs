@@ -76,8 +76,12 @@ namespace Smuxi.Engine
         GroupChatModel ContactChat { get; set; }
         
         XmppServerModel Server { get; set; }
-        
         bool AutoReconnect { get; set; }
+        
+        public delegate void ContactHandler (XmppPersonModel person);
+        public delegate void JidHandler (Jid jid);
+        public event JidHandler OnContactRemoved;
+        public event ContactHandler OnContactChanged;
 
         public override string NetworkID {
             get {
@@ -987,6 +991,10 @@ namespace Smuxi.Engine
             // setting to none also removes the person from chat, as we'd never get an offline message anymore
             if (rosterItem.Subscription == SubscriptionType.none
                 || rosterItem.Subscription == SubscriptionType.remove) {
+                
+                if (OnContactRemoved != null) {
+                    OnContactRemoved(rosterItem.Jid);
+                }
                 if (rosterItem.Subscription == SubscriptionType.remove) {
                     Contacts.Remove(rosterItem.Jid);
                 }
@@ -1007,6 +1015,9 @@ namespace Smuxi.Engine
             contact.Ask = rosterItem.Ask;
             contact.IdentityName = rosterItem.Name ?? rosterItem.Jid;
             contact.IdentityNameColored = null; // uncache
+            if (OnContactChanged != null) {
+                OnContactChanged(contact);
+            }
 
             if (ContactChat != null) {
                 lock (ContactChat) {
@@ -1055,6 +1066,9 @@ namespace Smuxi.Engine
             XmppResourceModel res;
             if (!contact.Resources.TryGetValue(jid.Resource, out res)) return;
             res.Disco = info;
+            if (OnContactChanged != null) {
+                OnContactChanged(contact);
+            }
         }
         
         void OnDiscoInfo(object sender, IQ iq, object pars)
@@ -1357,7 +1371,7 @@ namespace Smuxi.Engine
                         XmppResourceModel res2;
                         if (!person.Resources.TryGetValue(jid.Resource ?? "", out res2)) {
 #if LOG4NET
-                            _Logger.Warn("tried to logoff a nonexistant resource");
+                            _Logger.Warn(String.Format("tried to logoff a nonexistant resource (this is most likely an oddball package from your server): {0}", pres.ToString()));
 #endif
                             return;
                         }
@@ -1435,6 +1449,9 @@ namespace Smuxi.Engine
                 }
                 if (ContactChat != null) {
                     Session.AddMessageToChat(ContactChat, msg);
+                }
+                if (OnContactChanged != null) {
+                    OnContactChanged(person);
                 }
             }
         }

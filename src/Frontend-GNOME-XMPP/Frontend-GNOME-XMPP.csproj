@@ -38,15 +38,13 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="..\AssemblyVersion.cs" />
+    <Compile Include="XmppPersonChatView.cs" />
+    <Compile Include="XmppProtocolChatView.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Frontend-GNOME\Frontend-GNOME.csproj">
       <Project>{405874F0-A58A-4E79-8766-2150D069F691}</Project>
       <Name>Frontend-GNOME</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Engine\Engine.csproj">
-      <Project>{BCD52FCF-B7A8-42FB-AA8D-CF9921FF593E}</Project>
-      <Name>Engine</Name>
     </ProjectReference>
     <ProjectReference Include="..\Common\Common.csproj">
       <Project>{73DEF91D-03FF-41E3-B2E1-3259AF247CA7}</Project>
@@ -56,6 +54,33 @@
       <Project>{E75D5685-3027-414C-BC2C-E48307181D80}</Project>
       <Name>Engine-XMPP</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Frontend\Frontend.csproj">
+      <Project>{7B1E3AB2-FB8C-4439-A2B4-2129EDBD79F8}</Project>
+      <Name>Frontend</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\lib\agsxmpp\agsxmpp\agsxmpp.csproj">
+      <Project>{C6379274-C5DE-41A2-AE3E-753F85A557BA}</Project>
+      <Name>agsxmpp</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Engine\Engine.csproj">
+      <Project>{BCD52FCF-B7A8-42FB-AA8D-CF9921FF593E}</Project>
+      <Name>Engine</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Reference Include="gtk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <Private>False</Private>
+      <Package>gtk-sharp-2.0</Package>
+    </Reference>
+    <Reference Include="log4net, Version=1.2.10.0, Culture=neutral, PublicKeyToken=a5715cc6d5c3540b">
+      <Private>False</Private>
+      <Package>log4net</Package>
+    </Reference>
+    <Reference Include="gdk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <Private>False</Private>
+      <Package>gtk-sharp-2.0</Package>
+    </Reference>
+    <Reference Include="System" />
+  </ItemGroup>
 </Project>
