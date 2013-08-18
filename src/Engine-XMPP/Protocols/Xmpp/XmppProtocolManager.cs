@@ -87,6 +87,8 @@ namespace Smuxi.Engine
         
         XmppServerModel Server { get; set; }
         
+        Dictionary<string, XmppGroupChatModel> JoiningChats { get; set; }
+        
         // facebook messed up, this is part of a hack to fix that messup
         string LastSentMessage { get; set; }
         bool SupressLocalMessageEcho { get; set; }
@@ -420,6 +422,7 @@ namespace Smuxi.Engine
 
         public override bool Command(CommandModel command)
         {
+            Trace.Call(command);
             bool handled = false;
             if (IsConnected) {
                 if (command.IsCommand) {
@@ -917,21 +920,34 @@ namespace Smuxi.Engine
         [MethodImpl(MethodImplOptions.Synchronized)]
         void JoinRoom(Jid jid, string nickname, string password)
         {
-            XmppGroupChatModel chat = (XmppGroupChatModel)GetChat(jid, ChatType.Group);
-            if (nickname == null) {
+            Trace.Call(jid, nickname, password);
+            // chat already exists and is fully initialized
+            if (GetChat(jid, ChatType.Group) != null) return;
+            // am already joining chat
+            if (JoiningChats.ContainsKey(jid)) return;
+            
+            var chat = Session.CreateChat<XmppGroupChatModel>(jid, jid, this);
+
+            // choose default nick if none supplied
+            if (String.IsNullOrEmpty(nickname)) {
                 nickname = Nicknames[0];
+                for (int i = 1; i < Nicknames.Length; i++) {
+                    chat.NicknamesToTry.Enqueue(Nicknames[i]);
+                }
+            } else {
+                foreach (string nick in Nicknames) {
+                    chat.NicknamesToTry.Enqueue(nick);
+                }
             }
+
+            // join the room
             MucManager.JoinRoom(jid, nickname, password);
-            if (chat == null) {
-                chat = Session.CreateChat<XmppGroupChatModel>(jid, jid, this);
-                Session.AddChat(chat);
-            }
-            Session.DisableChat(chat);
             if (password != null) {
                 chat.Password = password;
             }
             chat.IsSynced = false;
             chat.OwnNickname = nickname;
+            JoiningChats.Add(jid.Bare, chat);
         }
 
         public void CommandJoinAs(CommandModel cd)
@@ -1518,19 +1534,219 @@ namespace Smuxi.Engine
             }
         }
 
+        static bool MucUserContainsStatusCode(User MucUser, StatusCode code)
+        {
+            foreach (var status in MucUser.StatusCodes) {
+                if (status.Code != code) continue;
+                return true;
+            }
+            return false;
+        }
+
         [MethodImpl(MethodImplOptions.Synchronized)]
-        void OnGroupChatPresence(XmppGroupChatModel chat, Presence pres)
+        void OnGroupChatSelfPresence(XmppGroupChatModel groupChat, Presence pres)
         {
             Jid jid = pres.From;
+            var MucUser = pres.MucUser;
+            foreach (var status in MucUser.StatusCodes) {
+                var builder = CreateMessageBuilder();
+                switch (status.Code) {
+                    case StatusCode.ModifiedNick:
+                        builder.AppendEventPrefix();
+                        builder.AppendFormat(_("Your nickname has been changed to {0}"), jid.Resource);
+                        {
+                            var newperson = new PersonModel(Me.ID, jid.Resource, NetworkID, Protocol, this);
+                            if (groupChat.UnsafePersons.ContainsKey(Me.ID)) {
+                                var oldperson = groupChat.GetPerson(Me.ID);
+                                Session.UpdatePersonInGroupChat(groupChat, oldperson, newperson);
+                            } else {
+                                Session.AddPersonToGroupChat(groupChat, newperson);
+                            }
+                        }
+                        groupChat.OwnNickname = jid.Resource;
+                        break;
+                    case StatusCode.RoomNonAnonymous:
+                        builder.AppendEventPrefix();
+                        builder.AppendFormat(_("This room is not anonymous, everyone in it will be able to see your real Jid"));
+                        break;
+                    case StatusCode.LoggingEnabled:
+                        builder.AppendEventPrefix();
+                        builder.AppendFormat(_("This room is logged publicly. Everything you say can be seen by people outside in this room."));
+                        break;
+                    default:
+                        builder.AppendEventPrefix();
+                        builder.AppendFormat(_("Unprocessed statuscode: {0}"), (int)status.Code);
+                        break;
+                }
+                Session.AddMessageToChat(groupChat, builder.ToMessage());
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        void OnGroupChatJoined(XmppGroupChatModel groupChat, Presence pres)
+        {
+            Session.AddChat(groupChat);
+            OnGroupChatSelfPresence(groupChat, pres);
+            // HACK: lower probability of sync race condition swallowing messages
+            ThreadPool.QueueUserWorkItem(delegate {
+                Thread.Sleep(1000);
+                groupChat.IsSynced = true;
+                Session.SyncChat(groupChat);
+                Session.EnableChat(groupChat);
+            });
+        }
+
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        void AbortJoin(Jid jid)
+        {
+            var builder = CreateMessageBuilder();
+            builder.AppendErrorText(_("Join to {0} aborted"), jid);
+            Session.AddMessageToChat(NetworkChat, builder.ToMessage());
+            JoiningChats.Remove(jid);
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        void OnGroupChatErrorPresenceWhileJoining(XmppGroupChatModel groupChat, Presence pres)
+        {
+            var builder = CreateMessageBuilder();
+            if (pres.Error == null) {
+                // got an error presence without error field?
+                builder.AppendErrorText(_("Got a malformed error presence packet: {0}"), pres);
+                Session.AddMessageToChat(NetworkChat, builder.ToMessage());
+                AbortJoin(groupChat.ID);
+                return;
+            }
+            switch (pres.Error.Type) {
+                case ErrorType.cancel:
+                    switch (pres.Error.Condition) {
+                        case ErrorCondition.Conflict:
+                            // nickname already in use
+                            var old_nick = groupChat.OwnNickname;
+                            if (groupChat.NicknamesToTry.Count == 0) {
+                                groupChat.OwnNickname += "_";
+                            } else {
+                                groupChat.OwnNickname = groupChat.NicknamesToTry.Dequeue();
+                            }
+                            builder.AppendErrorText(
+                                _("The nickname {0} is already used in {1}. Trying {2}"),
+                                old_nick,
+                                groupChat.ID,
+                                groupChat.OwnNickname);
+                            Session.AddMessageToChat(NetworkChat, builder.ToMessage());
+                            Session.AddMessageToChat(groupChat, builder.ToMessage());
+                            // rejoin
+                            MucManager.JoinRoom(
+                                groupChat.ID,
+                                groupChat.OwnNickname,
+                                groupChat.Password);
+                            return;
+                        case ErrorCondition.NotAcceptable:
+                            builder.AppendErrorText(
+                                _("The muc {0} thinks we are a groupchat 1.0 client"),
+                                groupChat.ID);
+                            break;
+                        case ErrorCondition.ItemNotFound:
+                            builder.AppendErrorText(
+                                _("{0} is currently being created. Please try again in a moment."),
+                                groupChat.ID);
+                            break;
+                        case ErrorCondition.NotAllowed:
+                            builder.AppendErrorText(
+                                _("You are not authorized to create {0}"),
+                                groupChat.ID);
+                            break;
+                    }
+                    break;
+                case ErrorType.modify:
+                    switch (pres.Error.Condition) {
+                        case ErrorCondition.JidMalformed:
+                            builder.AppendErrorText(
+                                _("No nickname specified for {0}"),
+                                groupChat.ID);
+                            break;
+                    }
+                    break;
+                case ErrorType.auth:
+                    switch (pres.Error.Condition) {
+                        case ErrorCondition.NotAuthorized:
+                            builder.AppendErrorText(
+                                _("Invalid password for {0}"),
+                                groupChat.ID);
+                            break;
+                        case ErrorCondition.RegistrationRequired:
+                            builder.AppendErrorText(
+                                _("You are not a member of {0}"),
+                                groupChat.ID);
+                            break;
+                        case ErrorCondition.Forbidden:
+                            builder.AppendErrorText(
+                                _("You are banned from {0}"),
+                                groupChat.ID);
+                            break;
+                    }
+                    break;
+                case ErrorType.wait:
+                    switch (pres.Error.Condition) {
+                        case ErrorCondition.ServiceUnavailable:
+                            builder.AppendErrorText(
+                                _("{0} is full"),
+                                groupChat.ID);
+                            break;
+                    }
+                    break;
+            }
+            Session.AddMessageToChat(NetworkChat, builder.ToMessage());
+            AbortJoin(groupChat.ID);
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        void OnGroupChatPresenceWhileJoining(XmppGroupChatModel groupChat, Presence pres)
+        {
+            var MucUser = pres.MucUser;
+            switch (pres.Type) {
+                case PresenceType.available:
+                    if (MucUserContainsStatusCode(MucUser, StatusCode.SelfPresence)) {
+                        OnGroupChatJoined(groupChat, pres);
+                    }
+                    break;
+                case PresenceType.error:
+                    OnGroupChatErrorPresenceWhileJoining(groupChat, pres);
+                    break;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        void OnGroupChatPresence(Presence pres)
+        {
+            Jid jid = pres.From;
+            string Nickname = jid.Resource;
+            var groupChat = (XmppGroupChatModel) Session.GetChat(jid, ChatType.Group, this);
+            if (groupChat == null) {
+                // is this chat currently being joined?
+                if (JoiningChats.TryGetValue(jid.Bare, out groupChat)) {
+                    OnGroupChatPresenceWhileJoining(groupChat, pres);
+                    return;
+                } else {
+                    var builder = CreateMessageBuilder();
+                    builder.AppendErrorText(_("Received presence packet from unknown muc: {0}"), jid);
+                    Session.AddMessageToChat(NetworkChat, builder.ToMessage());
+                    return;
+                }
+            }
+            var MucUser = pres.MucUser;
+
             XmppPersonModel person;
             // check whether we know the real jid of this muc user
-            if (pres.MucUser != null &&
+            if (pres.From.Resource == chat.OwnNickname) {
+                person = new XmppPersonModel(jid, pres.From.Resource, this);
+                person.IdentityNameColored.BackgroundColor = TextColor.None;
+                person.IdentityNameColored.ForegroundColor = new TextColor(0,0,255);
+                person.IdentityNameColored.Bold = true;
+            } else if (pres.MucUser != null &&
                 pres.MucUser.Item != null &&
                 pres.MucUser.Item.Jid != null ) {
                 string nick = pres.From.Resource;
-                if (!string.IsNullOrEmpty(pres.MucUser.Item.Nickname)) {
-                    nick = pres.MucUser.Item.Nickname;
-                }
                 person = GetOrCreateContact(pres.MucUser.Item.Jid.Bare, nick);
             } else {
                 // we do not know the real jid of this user, don't add it to our local roster
@@ -1565,9 +1781,14 @@ namespace Smuxi.Engine
                     break;
                 case PresenceType.unavailable:
                     Session.RemovePersonFromGroupChat(chat, person.ToPersonModel());
-                    // did I leave? then I "probably" left the room
                     if (pres.From.Resource == chat.OwnNickname) {
-                        Session.RemoveChat(chat);
+                        if (pres.MucUser.Status.Code == StatusCode.NewNickname) {
+                            // only a nickname change
+                            // there will be another presence packet to add me with the new name
+                        } else {
+                            // did I leave? then I "probably" left the room
+                            Session.RemoveChat(chat);
+                        }
                     }
                     break;
                 case PresenceType.error:
@@ -1730,11 +1951,9 @@ namespace Smuxi.Engine
                 // only test capabilities of users going online or changing something in their online state
                 RequestCapabilities(jid, pres.Capabilities);
             }
-            
-            var groupChat = (XmppGroupChatModel) Session.GetChat(jid.Bare, ChatType.Group, this);
-            
-            if (groupChat != null) {
-                OnGroupChatPresence(groupChat, pres);
+
+            if (pres.MucUser != null) {
+                OnGroupChatPresence(pres);
             } else {
                 OnPrivateChatPresence(pres);
             }
@@ -2175,15 +2394,15 @@ namespace Smuxi.Engine
                 }
             }
 
-            Me = new PersonModel(
+            Me = new XmppPersonModel(
                 String.Format("{0}@{1}",
                     JabberClient.Username,
                     JabberClient.Server
                 ),
                 JabberClient.Username,
-                NetworkID, Protocol, this
+                this
             );
-            Me.IdentityNameColored.ForegroundColor = new TextColor(0, 0, 255);
+            Me.IdentityNameColored.ForegroundColor = new TextColor(0,0,255);
             Me.IdentityNameColored.BackgroundColor = TextColor.None;
             Me.IdentityNameColored.Bold = true;
 

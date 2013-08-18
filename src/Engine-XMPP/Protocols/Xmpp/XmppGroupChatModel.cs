@@ -19,6 +19,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 
 using System;
+using System.Collections.Generic;
+using agsXMPP;
 
 namespace Smuxi.Engine
 {
@@ -28,10 +30,14 @@ namespace Smuxi.Engine
         public bool SeenNewMessages { get; set; }
         public string OwnNickname { get; set; }
         public string Password { get; set; }
+        internal Dictionary<Jid, Jid> RoomJidToUsedJid { get; private set; }
+        internal Queue<string> NicknamesToTry { get; private set; }
 
         public XmppGroupChatModel(string id, string name, IProtocolManager networkManager) :
                          base(id, name, networkManager)
         {
+            NicknamesToTry = new Queue<string>();
+            RoomJidToUsedJid = new Dictionary<Jid, Jid>();
         }
     }
 }

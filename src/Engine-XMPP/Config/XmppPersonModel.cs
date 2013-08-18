@@ -122,13 +122,15 @@ namespace Smuxi.Engine
         
         public PersonModel ToPersonModel()
         {
-            return new PersonModel(
+            var person = new PersonModel(
                 base.ID,
                 base.IdentityName,
                 base.NetworkID,
                 base.NetworkID,
                 base.ProtocolManager
                 );
+            person.IdentityNameColored = IdentityNameColored;
+            return person;
         }
     }
 }
