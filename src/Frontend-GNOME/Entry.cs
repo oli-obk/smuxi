@@ -425,7 +425,11 @@ namespace Smuxi.Frontend.Gnome
                         ChatViewManager.CurrentChatView.HasFocus = true;
                     } else {
                         if (Text.Length > 0) {
-                            _NickCompletion();
+                            if (Text.Substring(1).StartsWith("window")) {
+                                CommandWindowCompletion();
+                            } else {
+                                _NickCompletion();
+                            }
                         }
                     }
                     break;
@@ -628,6 +632,11 @@ namespace Smuxi.Frontend.Gnome
         private void _CommandDetach(CommandModel cd)
         {
             Frontend.Quit();
+        }
+
+        void CommandWindowCompletion()
+        {
+            throw new NotImplementedException();
         }
 
         private void _CommandWindow(CommandModel cd)
