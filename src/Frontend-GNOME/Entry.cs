@@ -653,7 +653,7 @@ namespace Smuxi.Frontend.Gnome
                     var candidates = new List<ChatView>();
                     foreach (var chatView in ChatViewManager.Chats) {
 
-                        if (chatView.Name.ToLower() != seachKey) {
+                        if (!chatView.Name.ToLower().StartsWith(seachKey)) {
                             continue;
                         }
                         // name matches
@@ -669,6 +669,10 @@ namespace Smuxi.Frontend.Gnome
                     }
 
                     if (candidates.Count == 0) {
+                        var builder = new MessageBuilder();
+                        builder.AppendEventPrefix();
+                        builder.AppendText(_("No chat tab named \"{0}\" found"), cd.Parameter);
+                        ChatViewManager.CurrentChatView.AddMessage(builder.ToMessage());
                         return;
                     }
                     ChatViewManager.CurrentChatView = candidates[0];
