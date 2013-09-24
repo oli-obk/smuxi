@@ -42,14 +42,17 @@ namespace Smuxi.Frontend
         private static readonly log4net.ILog _Logger = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 #endif
         private IDictionary<ChatViewInfoAttribute, Type> _ChatViewTypes = new Dictionary<ChatViewInfoAttribute, Type>();
+        private ChatViewType f_ActiveChat;
         
         public virtual ChatViewType ActiveChat
         {
             get {
-                throw new NotImplementedException();
+                return f_ActiveChat;
             }
             set {
-                OnChatSwitched(new ChatViewManagerChatSwitchedEventArgs<ChatViewType>(ActiveChat, value));
+                var old = f_ActiveChat;
+                f_ActiveChat = value;
+                OnChatSwitched(new ChatViewManagerChatSwitchedEventArgs<ChatViewType>(old, value));
             }
         }
 

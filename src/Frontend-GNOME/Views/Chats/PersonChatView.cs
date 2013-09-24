@@ -86,5 +86,10 @@ namespace Smuxi.Frontend.Gnome
 
             base.Sync();
         }
+
+        public void SetChatState(ChatState state)
+        {
+
+        }
     }
 }

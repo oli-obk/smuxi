@@ -114,6 +114,12 @@ namespace Smuxi.Frontend.Gnome
             SyncManager.ChatAdded += OnChatAdded;
             SyncManager.ChatSynced += OnChatSynced;
             SyncManager.WorkerException += OnWorkerException;
+            ChatSwitched += (sender, e) => {
+                if (e.SwitchedFrom != null) {
+                    e.SwitchedFrom.OnSwitchedFrom();
+                }
+                e.SwitchedTo.OnSwitchedTo();
+            };
         }
 
         /// <remarks>
