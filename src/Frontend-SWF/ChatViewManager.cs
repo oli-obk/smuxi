@@ -36,7 +36,7 @@ using Smuxi.Frontend;
 
 namespace Smuxi.Frontend.Swf
 {
-    public class ChatViewManager : ChatViewManagerBase
+    public class ChatViewManager : ChatViewManagerBase<ChatView>
     {
 #if LOG4NET
         private static readonly log4net.ILog _Logger = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -44,10 +44,15 @@ namespace Smuxi.Frontend.Swf
         private List<ChatView> f_Chats = new List<ChatView>();
         private Notebook       f_Notebook;
         private UserConfig     f_Config;
-        
-        public override IChatView ActiveChat {
+
+        public override ChatView ActiveChat {
             get {
                 return f_Notebook.CurrentChatView;
+            }
+            set {
+                var oldchat = ActiveChat;
+                f_Notebook.CurrentChatView = value;
+                OnChatSwitched(new ChatViewManagerChatSwitchedEventArgs<ChatView>(oldchat, value));
             }
         }
         
@@ -66,6 +71,7 @@ namespace Smuxi.Frontend.Swf
             }
             
             f_Notebook.TabPages.Add(chatView);
+            OnChatAdded(new ChatViewManagerChatAddedEventArgs<ChatView>(chatView));
         }
         
         public override void RemoveChat(ChatModel chat)
@@ -73,6 +79,7 @@ namespace Smuxi.Frontend.Swf
             ChatView chatView = f_Notebook.GetChat(chat);
             f_Notebook.TabPages.Remove(chatView);
             f_Chats.Remove(chatView);
+            OnChatRemoved(new ChatViewManagerChatRemovedEventArgs<ChatView>(chatView));
         }
         
         public override void EnableChat(ChatModel chat)

@@ -32,7 +32,7 @@ using Smuxi.Frontend;
 
 namespace Smuxi.Frontend.Stfl
 {
-    public class ChatViewManager : ChatViewManagerBase
+    public class ChatViewManager : ChatViewManagerBase<ChatView>
     {
 #if LOG4NET
         private static readonly log4net.ILog _Logger = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -42,19 +42,22 @@ namespace Smuxi.Frontend.Stfl
         private Dictionary<ChatModel, ChatView> f_ChatViews = new Dictionary<ChatModel, ChatView>();
         private List<ChatView>                  f_ChatViewList = new List<ChatView>();
 
-        public event ChatSwitchedEventHandler CurrentChatSwitched;
-
-        public override IChatView ActiveChat {
+        [Obsolete("This property is deprecated, use ActiveChat instead")]
+        public ChatView CurrentChat {
             get {
-                return CurrentChat;
+                return ActiveChat;
+            }
+            set {
+                ActiveChat = value;
             }
         }
-        
-        public ChatView CurrentChat {
+
+        public override ChatView ActiveChat {
             get {
                 return f_CurrentChat;
             }
             set {
+                ChatView oldchat = ActiveChat;
                 if (f_CurrentChat != null) {
                     f_CurrentChat.IsVisible = false;
                 }
@@ -71,25 +74,23 @@ namespace Smuxi.Frontend.Stfl
                     UpdateTopic();
                 }
 
-                if (CurrentChatSwitched != null) {
-                    CurrentChatSwitched(this, new ChatSwitchedEventArgs(f_CurrentChat));
-                }
+                OnChatSwitched(new ChatViewManagerChatSwitchedEventArgs<ChatView>(oldchat, value));
             }
         }
 
         public int CurrentChatNumber {
             get {
-                if (CurrentChat == null) {
+                if (ActiveChat == null) {
                     return -1;
                 }
-                return f_ChatViewList.IndexOf(CurrentChat);
+                return f_ChatViewList.IndexOf(ActiveChat);
             }
             set {
                 if (value < 0 || value >= f_ChatViewList.Count) {
                     return;
                 }
 
-                CurrentChat = f_ChatViewList[value];
+                ActiveChat = f_ChatViewList[value];
             }
         }
 
@@ -107,6 +108,7 @@ namespace Smuxi.Frontend.Stfl
             ChatView chatView = (ChatView) CreateChatView(chat, f_MainWindow);
             f_ChatViews.Add(chat, chatView);
             f_ChatViewList.Add(chatView);
+            OnChatAdded(new ChatViewManagerChatAddedEventArgs<ChatView>(chatView));
 
             if (CurrentChat == null) {
                 CurrentChat = chatView;
@@ -124,9 +126,11 @@ namespace Smuxi.Frontend.Stfl
                 CurrentChatNumber--;
             }
 
-            chatView.Dispose();
             f_ChatViews.Remove(chat);
             f_ChatViewList.Remove(chatView);
+
+            OnChatRemoved(new ChatViewManagerChatRemovedEventArgs<ChatView>(chatView));
+            chatView.Dispose();
 
             UpdateNavigation();
         }
@@ -231,18 +235,6 @@ namespace Smuxi.Frontend.Stfl
 
             f_MainWindow.TopicLabel = topic;
             f_MainWindow.ShowTopic = !String.IsNullOrEmpty(topic);
-        }
-    }
-
-    public delegate void ChatSwitchedEventHandler(object sender, ChatSwitchedEventArgs e);
-    
-    public class ChatSwitchedEventArgs : EventArgs
-    {
-        public ChatView ChatView { get; set; }
-        
-        public ChatSwitchedEventArgs(ChatView chatView)
-        {
-            ChatView = chatView;
         }
     }
 }
